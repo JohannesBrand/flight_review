@@ -14,7 +14,8 @@ class DynamicDownsample:
         thresholds.
         Currently uses a very simple downsampling by picking every N-th sample
     """
-    def __init__(self, bokeh_plot, data, x_key):
+    def __init__(self, bokeh_plot, data, x_key, min_density = 2, startup_density = 3,
+                 init_density = 5, range_margin = 0.2):
         """ Initialize and setup callback
 
         Args:
@@ -30,15 +31,15 @@ class DynamicDownsample:
 
         # parameters
         # minimum number of samples/pixel. Below that, we load new data
-        self.min_density = 2
+        self.min_density = min_density
         # density on startup: density used for initializing the plot. The
         # smaller this is, the less data needs to be loaded on page load (this
         # must still be >= min_density).
-        self.startup_density = 3
+        self.startup_density = startup_density
         # when loading new data, number of samples/pixel is set to this value
-        self.init_density = 5
+        self.init_density = init_density
         # when loading new data, add a percentage of data on both sides
-        self.range_margin = 0.2
+        self.range_margin = range_margin
 
         # create a copy of the initial data
         self.init_data = {}
@@ -111,5 +112,3 @@ class DynamicDownsample:
             self.last_step_size = step_size
             for k in data:
                 data[k] = data[k][::step_size]
-
-

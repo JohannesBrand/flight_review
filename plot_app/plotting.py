@@ -663,7 +663,7 @@ class DataPlotSpec(DataPlot):
                                            y_axis_label=y_axis_label, title=title, plot_height=plot_height,
                                            x_range=x_range, y_range=y_range, topic_instance=topic_instance)
 
-    def add_graph(self, field_names, legends, window='hann', window_length=256, noverlap=128):
+    def add_graph(self, field_names, legends, use_downsample=False, window='hann', window_length=256, noverlap=128):
         """ add a spectrogram plot to the graph
 
         field_names: can be a list of fields from the data set, or a list of
@@ -705,21 +705,30 @@ class DataPlotSpec(DataPlot):
 
             color_mapper = LinearColorMapper(palette=viridis(256), low=-80, high=0)
 
-            image = [10 * np.log10(sum_psd)]
+            image = 10 * np.log10(sum_psd)
             title = self.title
             for legend in legends:
                 title += " " + legend
             title += " [dB]"
 
-            max_num_data_points = 1000
-            if len(time) > max_num_data_points:
-                step_size = int(len(time) / max_num_data_points)
-                time = time[::step_size]
-                image[0] = image[0][:, ::step_size]
+            data_set = {'time': time, 'image': image.T}
+
+            if use_downsample:
+                # we directly pass the data_set, downsample and then create the
+                # ColumnDataSource object, which is much faster than
+                # first creating ColumnDataSource, and then downsample
+                downsample = DynamicDownsample(self._p, data_set, 'time', min_density=0.5, startup_density=0.5,
+                                               init_density=1.0)
+                data_source = downsample.data_source
+            else:
+                data_source = ColumnDataSource(data=data_set)
+
+            images = [data_source.data['image'].T]
+            time = data_source.data['time']
 
             self._p.y_range = Range1d(frequency[0], frequency[-1])
             self._p.toolbar_location = 'above'
-            self._p.image(image=image, x=time[0], y=frequency[0], dw=(time[-1]-time[0]),
+            self._p.image(image=images, x=time[0], y=frequency[0], dw=(time[-1]-time[0]),
                           dh=(frequency[-1]-frequency[0]), color_mapper=color_mapper)
             color_bar = ColorBar(color_mapper=color_mapper,
                                  major_label_text_font_size="5pt",
