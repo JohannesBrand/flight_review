@@ -32,6 +32,7 @@ class _VersionData(object):
         self.airframes_num_logs = {} # num logs/flights per airframes
         self.ratings = {}
         self.flight_mode_durations = {} # flight durations per flight mode
+        self.mav_types = {}
 
 class _Log(object):
     """
@@ -57,6 +58,7 @@ class _Log(object):
     def set_generated(self, db_tuple):
         """ set from a LogsGenerated DB tuple """
         self.duration = db_tuple[1]
+        self.mav_type = db_tuple[2]
         self.autostart_id = db_tuple[4]
         self.hardware = db_tuple[5]
         self.uuid = db_tuple[11]
@@ -186,6 +188,7 @@ class StatisticsPlots(object):
         self._all_boards = set()
         self._all_ratings = set()
         self._all_flight_modes = set()
+        self._all_mav_types = set()
         self._total_duration = 0 # in hours, public logs only
         self._total_last_version_duration = 0 # in hours, public logs only
         self._latest_major_release = ""
@@ -197,14 +200,20 @@ class StatisticsPlots(object):
             self._all_airframes.add(str(log.autostart_id))
             self._all_boards.add(log.hardware)
             self._all_ratings.add(log.rating)
+            self._all_mav_types.add(log.mav_type)
 
             cur_version_data = self._version_data[log.sw_version]
             boards = cur_version_data.boards
             boards_num_logs = cur_version_data.boards_num_logs
             airframes = cur_version_data.airframes
             airframes_num_logs = cur_version_data.airframes_num_logs
+            mav_types = cur_version_data.mav_types
             ratings = cur_version_data.ratings
             flight_modes = cur_version_data.flight_mode_durations
+
+            if not log.mav_type in mav_types:
+                mav_types[log.mav_type] = 0
+            mav_types[log.mav_type] += 1
 
             if not log.hardware in boards:
                 boards[log.hardware] = 0
@@ -257,10 +266,12 @@ class StatisticsPlots(object):
         :param colors: list of 5 colors
         :return: bokeh plot
         """
-        title = 'Number of Log Files on the Server'
+        title = '' #''Number of Log Files on the Server'
         p = figure(title=title, x_axis_label=None,
-                   y_axis_label=None, tools=TOOLS,
+                   y_axis_label='Number of Logs', tools=TOOLS,
                    active_scroll=ACTIVE_SCROLL_TOOLS)
+
+        p.yaxis.axis_label_text_font_size = '16pt'
 
         def plot_dates(p, dates_list, last_date, legend, color):
             """ plot a single line from a list of dates """
@@ -304,6 +315,7 @@ class StatisticsPlots(object):
             )
 
 
+        '''
         # show the release versions as text markers
         release_dict = dict(dates=[], tags=[], y=[], y_offset=[])
         max_logs_dates = self._private_logs_dates # defines range limits of the plot
@@ -352,8 +364,13 @@ class StatisticsPlots(object):
                     }
                     source.trigger('change');
                 """
+        '''
 # FIXME: this is broken on bokeh 0.12.12
 #                p.y_range.callback = CustomJS(args=dict(source=source), code=jscode)
+
+        p.xaxis.major_label_text_font_size = '16pt'
+        p.yaxis.major_label_text_font_size = '16pt'
+        p.legend.label_text_font_size = '16pt'
 
         self._setup_plot(p, 'large')
 
@@ -390,6 +407,15 @@ class StatisticsPlots(object):
         return self._plot_public_data_statistics(
             self._all_boards, 'boards_num_logs', 'Board', lambda x, short: x, False)
 
+    def plot_public_mav_types_statistics(self):
+        """
+        plot mav_type flight hours for each version, for public logs
+        :return: bokeh plot
+        """
+
+        return self._plot_public_data_statistics(
+            self._all_mav_types, 'mav_types', 'MAVTYPE', lambda x, short: x, False)
+
     def plot_public_airframe_statistics(self):
         """
         plot airframe flight hour statistics for each version, for public logs
@@ -404,11 +430,14 @@ class StatisticsPlots(object):
             if airframe_data is None:
                 airframe_label = airframe_id
             else:
+                airframe_label = airframe_data.get('name')
+                '''
                 airframe_type = ''
                 if 'type' in airframe_data:
                     airframe_type = ', '+airframe_data['type']
                 airframe_label = airframe_data.get('name')+ \
                                    airframe_type+' ('+airframe_id+')'
+                '''
             return airframe_label
 
         return self._plot_public_data_statistics(
@@ -485,10 +514,12 @@ class StatisticsPlots(object):
 
 
         colors = viridis(len(all_data))
-        area = figure(title=title_prefix+" per "+title_name, tools=TOOLS,
+        area = figure(title='', # title_prefix+" per "+title_name,
+                      tools=TOOLS,
                       active_scroll=ACTIVE_SCROLL_TOOLS,
-                      x_axis_label='version (including development states)',
-                      y_axis_label='')
+                      #x_axis_label='version (including development states)',
+                      x_axis_label='',
+                      y_axis_label= 'Flight Hours' if is_flight_hours else 'Number of Logs')
 
         # stack the data: we'll need it for the hover tool & the patches
         last = np.zeros(len(versions))
@@ -545,14 +576,23 @@ class StatisticsPlots(object):
         if area.legend:
             area.legend[0].items.reverse()
 
+        # remove subversions
+        versions_spaced = ['' if not ver or ver[0] == 'x' else ver for ver in versions_spaced]
+
         area.xaxis.formatter = FuncTickFormatter(code="""
             var versions = """ + str(versions_spaced) + """;
             return versions[Math.floor(tick)]
         """)
         area.xaxis.ticker = FixedTicker(ticks=list(data_hours['x']))
 
+        area.xaxis.major_label_text_font_size = '16pt'
+        area.yaxis.major_label_text_font_size = '16pt'
+
+        #area.xaxis.axis_label_text_font_size = '16pt'
+        area.yaxis.axis_label_text_font_size = '16pt'
+
         # decrease size a bit to fit all items
-        area.legend.label_text_font_size = '8pt'
+        area.legend.label_text_font_size = '12pt'
         area.legend.label_height = 8
         area.legend.glyph_height = 10
 

@@ -72,6 +72,9 @@ if GET_arguments is not None and 'stats' in GET_arguments:
     p = statistics.plot_public_flight_mode_statistics()
     plots.append(p)
 
+    p = statistics.plot_public_mav_types_statistics()
+    plots.append(p)
+
     # TODO: add a rating pie chart (something like
     # http://bokeh.pydata.org/en/latest/docs/gallery/donut_chart.html ?)
 
